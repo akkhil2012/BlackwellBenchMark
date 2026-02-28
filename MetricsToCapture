@@ -1,0 +1,11 @@
+Core Metrics
+
+p50 / p95 / p99 End-to-End Latency
+
+Time To First Token (TTFT)
+
+Time Per Output Token (TPOT)
+
+Decode Completion Time
+
+Queue Wait Time
