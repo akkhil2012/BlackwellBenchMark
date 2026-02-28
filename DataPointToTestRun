@@ -1,0 +1,73 @@
+Perfect—**70B + 32k + vLLM** is ideal for making **p99 tail latency** show up.
+
+Here’s a **ready-to-use workload recipe** (prompt/output lengths + mix) that reliably amplifies p99 on high-concurrency GPUs like Blackwell.
+
+## Serving engine
+
+* **vLLM** (use **continuous batching**; default behavior already does, but keep it enabled)
+* Use **a realistic decoding stack** (greedy or low-temp sampling); p99 is more about queueing + stragglers than sampling params.
+
+## Workload profile to maximize p99 (recommended)
+
+### Prompt length distribution (tokens)
+
+* **55%**: **2,048**
+* **30%**: **8,192**
+* **12%**: **24,576**
+* **3%**: **32,000** (true worst-case “elephants”)
+
+### Output length distribution (max_new_tokens)
+
+* **65%**: **128**
+* **25%**: **512**
+* **10%**: **1,024**
+
+### Why this works for p99
+
+That **small 3% of 32k prompts** + **10% long outputs** creates **batch stragglers**. Under vLLM continuous batching, those stragglers stretch decode steps and push many short requests into the tail → **p99 spikes**.
+
+---
+
+## “Even harsher” p99 profile (if you want bigger tails)
+
+Use this if Blackwell looks “too good” because it has more headroom.
+
+### Prompt lengths
+
+* **40%**: 8,192
+* **40%**: 16,384
+* **20%**: 32,000
+
+### Output lengths
+
+* **50%**: 512
+* **50%**: 1,024
+
+This will inflate p99 aggressively (and can blow up memory if concurrency is too high).
+
+---
+
+## One crucial knob for a fair Blackwell vs H100 comparison
+
+To make Blackwell’s p99 appear “higher”, don’t compare at equal RPS. Compare at equal **stress point**:
+
+* Run both at **~90–95% GPU utilization** (or same effective throughput target).
+* Practically: increase concurrency/RPS on Blackwell until it reaches the same queueing regime.
+
+Rule of thumb for your case (70B/32k):
+
+* Start at a concurrency where **p99 is stable**
+* Increase in steps until **p99 starts curving upward sharply**
+* Record that “knee” point on both GPUs
+
+That “knee” is where tails become meaningful.
+
+---
+
+## Minimal vLLM settings that help expose p99 (without overcomplicating)
+
+* Keep **prefill + decode mixed** (don’t isolate phases)
+* Keep batching on
+* Ensure the server doesn’t reject long contexts prematurely (32k support end-to-end)
+
+If you want, I can give you a concrete **starting concurrency ladder** (e.g., 8→16→32→64…) and the exact **vLLM launch flags** based on whether you’re running **B200 80GB** or **GB200/GB300** and whether you’re using tensor-parallel across 2/4/8 GPUs.
