@@ -1,0 +1,45 @@
+Steps to do to run benchmark on blackwell:
+
+To capture p99 inference latency on NVIDIA Blackwell, the fastest path is to rent time on a cloud that already offers Blackwell (B200 / GB200 / GB300), run a controlled load test, and export latency percentiles.
+
+Where you can get Blackwell GPUs right now (practical options)
+
+AWS EC2 P6-B200 (8× Blackwell B200 GPUs per instance)
+
+Google Cloud Compute Engine A4 (A4 machine series uses NVIDIA B200 Blackwell GPUs)
+
+CoreWeave (HGX B200 instances generally available; also Blackwell offerings)
+
+Azure (Blackwell-based VM lines are emerging; e.g., Blackwell Ultra GB300 series info is published)
+
+If you want the least friction for inference benchmarking, CoreWeave / AWS / GCP are typically the quickest routes because you can spin up the instance and run your harness immediately.
+
+How to capture p99 latency correctly (minimal but solid methodology)
+
+Pick your serving stack: vLLM, TensorRT-LLM, Triton, or your in-house server. (Use the same stack when comparing to H100.)
+
+Warm-up: run a few hundred requests before measuring.
+
+Fixed workload definition (important for p99):
+
+model + quantization (FP16/BF16/FP8/FP4 if applicable)
+
+prompt length + output length distribution
+
+concurrency or request arrival rate (RPS)
+
+Run at steady state for long enough to get stable tails (e.g., 10k–100k requests depending on variance).
+
+Record per-request latency end-to-end and compute:
+
+p50, p95, p99
+
+also TTFT (time-to-first-token) and TPOT (time-per-output-token) if it’s an LLM
+
+A simple, reliable benchmark pattern (what I recommend)
+
+Generate load with locust or wrk2-style constant-rate generator (for HTTP), or a custom async client.
+
+Emit latency histograms (Prometheus/OpenTelemetry) so p99 is computed consistently.
+
+On the node, also capture GPU telemetry (utilization, memory, SM occupancy) so you can explain p99 spikes (queueing vs kernel vs KV/memory pressure).
